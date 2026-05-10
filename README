@@ -1,0 +1,65 @@
+# LeanStock Backend
+
+
+## Overview
+This is a backend system for managing inventory and orders across multiple shop locations.
+
+## Features
+- Create orders with inventory validation
+- Prevent overselling
+- Transfer stock between shops
+- ACID transactions using Prisma
+
+## Tech Stack
+- Node.js
+- Express
+- PostgreSQL
+- Prisma ORM
+
+## API Endpoints
+
+### Create Order
+POST /orders
+
+Example:
+{
+  "userId": 1,
+  "shopId": 1,
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 1,
+      "price": 1000
+    }
+  ]
+}
+
+---
+
+### Transfer Stock
+POST /inventory/transfer
+
+Example:
+{
+  "productId": 1,
+  "fromShopId": 1,
+  "toShopId": 2,
+  "quantity": 2
+}
+
+---
+
+### Get Inventory
+GET /inventory
+
+Returns all inventory across shops
+
+## Run
+
+npm install
+npx prisma migrate dev
+node app.js
+
+## pagination 
+
+Pagination: /orders?page=1&limit=5

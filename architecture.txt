@@ -1,0 +1,91 @@
+# Architecture
+
+## Tech Stack
+
+| Component   | Technology            | Reason |
+|------------|----------------------|--------|
+| Backend    | Node.js + Express    | Provides a lightweight and non-blocking architecture suitable for handling multiple concurrent requests using the event loop |
+| Database   | PostgreSQL           | Ensures ACID compliance, which is critical for financial and inventory operations |
+| ORM        | Prisma               | Provides type-safe queries, prevents SQL injection, and simplifies database interaction |
+| Cache      | Redis (planned)      | Will be used for rate limiting and performance optimization in future improvements |
+
+---
+
+## System Design
+
+The system follows a layered REST API architecture:
+
+- **Routing Layer**: Handles incoming HTTP requests and maps them to appropriate services  
+- **Service Layer**: Contains all business logic such as order creation, stock validation, and transfer operations  
+- **Data Access Layer (Prisma ORM)**: Responsible for interacting with the PostgreSQL database using type-safe queries  
+
+This separation of concerns improves maintainability, scalability, and testability of the system.
+
+All critical operations (such as order creation and stock transfer) are executed using **database transactions** to ensure consistency and prevent data corruption.
+
+---
+
+## Async Architecture Justification
+
+Node.js was chosen due to its event-driven, non-blocking I/O model.  
+This makes it suitable for handling multiple concurrent API requests efficiently, especially in scenarios involving frequent database access such as inventory checks and order processing.
+
+---
+
+## Folder Structure
+
+express-project/
+├── src/
+│   ├── config/
+│   │   └── database.js      # PrismaClient singleton (инстанс БД)
+│   ├── controllers/
+│   │   ├── authController.js   # Логика регистрации и логина
+│   │   ├── productController.js # Логика товаров и Dead Stock Decay
+│   │   └── orderController.js   # Логика заказов (с транзакциями)
+│   ├── middleware/
+│   │   ├── auth.js          # JWT verification & RBAC
+│   │   └── errorHandler.js  # Централизованная обработка ошибок (400, 404, 500)
+│   ├── routes/
+│   │   ├── auth.routes.js   # Маршруты для авторизации
+│   │   ├── product.routes.js # Маршруты для инвентаря
+│   │   └── order.routes.js   # Маршруты для заказов
+│   ├── services/
+│   │   └── cron.service.js  # Скрипт для уценки залежалого товара (Node-cron)
+│   ├── utils/
+│   │   └── asyncHandler.js  # Обертка для обработки ошибок в async функциях
+│   └── app.js               # Инициализация Express
+├── prisma/
+│   ├── schema.prisma        # Твоя схема, которую мы проверили
+│   └── migrations/          # История изменений БД
+├── .env                     # Переменные окружения (DATABASE_URL, JWT_SECRET)
+├── .env.example             # Шаблон для других разработчиков
+├── package.json
+└── README.md
+
+
+This structure separates concerns clearly:
+- Routes handle HTTP layer
+- Services handle logic
+- Prisma handles database access
+
+---
+
+## Environment Strategy
+
+The application uses a `.env` file to manage configuration and secrets.
+
+Key variables:
+- `DATABASE_URL` — PostgreSQL connection string
+
+Environment variables are loaded at application startup and are not hardcoded in the source code, ensuring better security practices.
+
+In a production environment, environment variables would be validated before application startup to prevent runtime failures.
+
+---
+
+## Scalability Considerations
+
+- The service layer allows easy addition of new business logic without affecting routes
+- Prisma ORM simplifies database scaling and schema evolution
+- PostgreSQL supports indexing and transactions for high data consistency
+- Redis can be added later for caching and rate limiting

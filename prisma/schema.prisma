@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  CASHIER
+  VIEWER
+  AUDITOR
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+}
+
+model Tenant {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+
+  users    User[]
+  shops    Shop[]
+  products Product[]
+  orders   Order[]
+}
+
+model User {
+  id            String         @id @default(uuid())
+  tenantId      Int
+  name          String
+  email         String         @unique
+  role          Role           @default(CASHIER)
+  active        Boolean        @default(true)
+  passwordHash  String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime?
+  refreshTokens RefreshToken[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  apiKeys ApiKey[]
+  orders  Order[]
+  logs    AuditLog[]
+
+  @@index([tenantId])
+}
+
+model Shop {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  name      String
+  location  String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  inventories Inventory[]
+  orders      Order[]
+
+  @@index([tenantId])
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int
+  name      String
+  price     Float
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  inventories  Inventory[]
+  orderItems   OrderItem[]
+  priceHistory PriceHistory[]
+
+  @@index([tenantId])
+}
+
+model Inventory {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  shopId    Int
+  quantity  Int
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+  shop    Shop    @relation(fields: [shopId], references: [id])
+
+  @@unique([productId, shopId])
+  @@index([productId])
+  @@index([shopId])
+  @@index([productId, shopId])
+}
+
+model Order {
+  id        Int         @id @default(autoincrement())
+  tenantId  Int
+  userId    String
+  shopId    Int
+  status    OrderStatus @default(PENDING)
+  total     Float
+  createdAt DateTime    @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  shop   Shop   @relation(fields: [shopId], references: [id])
+
+  items OrderItem[]
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([shopId])
+}
+
+model OrderItem {
+  id        Int   @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Float
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model PriceHistory {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  oldPrice  Float
+  newPrice  Float
+  changedAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+}
+
+model ApiKey {
+  id                Int          @id @default(autoincrement())
+  userId            String
+  keyPrefix         String
+  keyHash           String
+  name              String       @default("Default Project")
+  status            ApiKeyStatus @default(ACTIVE)
+  plan              String       @default("free")
+  monthlyQuota      Int          @default(100)
+  requestsThisMonth Int          @default(0)
+  createdAt         DateTime     @default(now())
+  lastUsedAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  action    String
+  entity    String
+  entityId  Int
+  timestamp DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entity])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}

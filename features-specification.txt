@@ -1,0 +1,83 @@
+# Features Specification
+
+## User Roles
+
+- Customer (User) — creates and views orders
+- Shop (Store) — manages inventory and stock operations
+
+---
+
+## Features by Role
+
+### Customer
+- Create new orders by selecting products and quantities
+- View list of previous orders
+- Receive order details including total price and items
+
+---
+
+### Shop
+- Manage inventory (add, update, view stock levels)
+- Transfer stock between different shops
+- Monitor product availability
+- Apply discounts to slow-moving (dead stock) products
+
+---
+
+## Business Workflows
+
+### Order Creation Workflow
+
+1. Customer sends an order request with selected products and quantities
+2. System validates request data
+3. System checks inventory availability for each product
+4. If any product has insufficient stock → system returns error
+5. If all products are available:
+   - A database transaction is started
+   - Inventory quantities are reduced accordingly
+   - Order and order items are created
+6. System calculates total order price
+7. Order is saved and returned to the user
+
+---
+
+### Stock Transfer Workflow
+
+1. A request is made to transfer stock between shops
+2. System validates input data (product, source shop, destination shop)
+3. System checks if source shop has enough stock
+4. If insufficient stock → return error
+5. If valid:
+   - Start database transaction
+   - Deduct stock from source shop
+   - Check if destination shop has existing inventory:
+     - If yes → increase quantity
+     - If no → create new inventory record
+6. Commit transaction
+7. Return success response
+
+---
+
+### Dead Stock Discount Workflow
+
+1. System scans all products in inventory
+2. For each product, the system calculates how long it has been stored
+3. If product age exceeds a defined threshold (e.g., 30 days):
+   - Apply a discount (e.g., 10%)
+4. Discounts can be triggered:
+   - Automatically (scheduled job)
+   - Manually (via API endpoint)
+5. Updated prices are saved in the database
+
+---
+
+## Constraints & Business Rules
+
+- A user cannot create an order with quantity greater than available stock
+- Inventory quantity cannot go below zero
+- Stock transfer requires sufficient quantity in the source shop
+- Each product-shop pair must be unique (no duplicate inventory records)
+- Each order must be linked to a valid user and shop
+- Product price must be greater than zero
+- Dead stock discount is applied only to products older than the threshold
+- All inventory operations must use database transactions to ensure consistency (ACID compliance)

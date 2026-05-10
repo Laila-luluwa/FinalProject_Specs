@@ -1,0 +1,107 @@
+# Security Analysis
+
+## Overview
+
+The system is designed with a focus on protecting data integrity, preventing unauthorized access, and ensuring safe handling of sensitive information.
+
+The security model follows the STRIDE framework to identify and mitigate potential threats.
+
+---
+
+## STRIDE Analysis
+
+### 1. Spoofing (Identity Forgery)
+
+Threat:
+An attacker may attempt to impersonate a valid user.
+
+Mitigation:
+- JWT-based authentication is planned for user identity verification
+- Tokens will be signed using a secret key stored in environment variables
+- Token expiration will be enforced to reduce risk of misuse
+
+---
+
+### 2. Tampering (Data Manipulation)
+
+Threat:
+An attacker may try to modify requests or manipulate database queries.
+
+Mitigation:
+- Prisma ORM uses parameterized queries, preventing SQL injection
+- Input validation is performed before processing requests
+- Database transactions ensure that partial updates cannot corrupt data
+
+---
+
+### 3. Repudiation (Action Denial)
+
+Threat:
+Users may deny performing certain actions (e.g., creating orders).
+
+Mitigation:
+- System logs will record critical actions such as order creation and stock transfer
+- Each record includes timestamps and associated user/shop IDs
+- Future improvement: implement audit log table (append-only)
+
+---
+
+### 4. Information Disclosure
+
+Threat:
+Sensitive data (e.g., user credentials or database details) may be exposed.
+
+Mitigation:
+- Sensitive configuration is stored in environment variables (.env)
+- No secrets are hardcoded in the application
+- API responses only include necessary data fields
+
+---
+
+### 5. Denial of Service (DoS)
+
+Threat:
+Attackers may overload the system with repeated requests.
+
+Mitigation:
+- Planned integration of Redis for rate limiting
+- Different rate limits for public and authenticated endpoints
+- Future improvement: implement token bucket algorithm
+
+---
+
+### 6. Elevation of Privilege
+
+Threat:
+Users may attempt to gain higher access rights.
+
+Mitigation:
+- Role-based access control (RBAC) is planned
+- Different roles (Customer, Shop, Admin) will have restricted permissions
+- Middleware will enforce authorization rules for protected endpoints
+
+---
+
+## Secret Management
+
+- All sensitive data (database URL, JWT secret) is stored in `.env` file
+- Secrets are not committed to version control
+- Environment variables are loaded at application startup
+- In production, secrets would be managed using secure vault systems
+
+---
+
+## Data Protection
+
+- All critical operations use database transactions to ensure data consistency
+- Inventory updates and order processing are atomic operations
+- Prevents data corruption and race conditions
+
+---
+
+## Future Security Improvements
+
+- Full JWT authentication implementation
+- Password hashing using bcrypt
+- Redis-based rate limiting
+- Audit log table for tracking all critical actions

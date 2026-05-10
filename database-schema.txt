@@ -1,0 +1,212 @@
+# Database Schema
+
+## Overview
+
+The system uses PostgreSQL as the primary database with Prisma ORM for schema management and data access.
+
+The database is designed to support inventory management, order processing, and stock transfer operations while ensuring data consistency through transactions.
+
+---
+
+## Entity Relationship Diagram (ERD)
+
+ASCII representation:
+
+User (1) ────── (N) Order
+Order (1) ────── (N) OrderItem
+Product (1) ──── (N) OrderItem
+Product (1) ──── (N) Inventory
+Shop (1) ─────── (N) Inventory
+Shop (1) ─────── (N) Order
+
+---
+
+## Tables Description
+
+### User
+- id (PK)
+- name
+- email (unique)
+- passwordHash
+
+A user represents a customer who can create orders.
+
+---
+
+### Product
+- id (PK)
+- name
+- price
+- createdAt
+
+Represents items that can be purchased and stored in inventory.
+
+---
+
+### Shop
+- id (PK)
+- name
+
+Represents a physical or virtual store location.
+
+---
+
+### Inventory
+- id (PK)
+- productId (FK → Product)
+- shopId (FK → Shop)
+- quantity
+- updatedAt
+
+Represents stock levels of products in each shop.
+
+Constraint:
+- Each product-shop pair must be unique
+
+---
+
+### Order
+- id (PK)
+- userId (FK → User)
+- shopId (FK → Shop)
+- total
+- status
+- createdAt
+
+Represents a customer order.
+
+---
+
+### OrderItem
+- id (PK)
+- orderId (FK → Order)
+- productId (FK → Product)
+- quantity
+- price
+
+Represents items within an order.
+
+---
+
+## Relationships
+
+- One User can have many Orders (1:N)
+- One Order can have many OrderItems (1:N)
+- One Product can appear in many OrderItems (1:N)
+- One Product can exist in many Inventory records (1:N)
+- One Shop can have many Inventory records (1:N)
+
+---
+
+## Prisma Schema
+
+(Insert your schema.prisma file here)
+
+Example:
+
+model User {
+  id        Int     @id @default(autoincrement())
+  name      String
+  email     String  @unique
+  passwordHash String
+  orders    Order[]
+}
+
+model Product {
+  id        Int     @id @default(autoincrement())
+  name      String
+  price     Float
+  createdAt DateTime @default(now())
+  inventory Inventory[]
+}
+
+model Shop {
+  id        Int     @id @default(autoincrement())
+  name      String
+  inventory Inventory[]
+  orders    Order[]
+}
+
+model Inventory {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  shopId    Int
+  quantity  Int
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+  shop    Shop    @relation(fields: [shopId], references: [id])
+
+  @@unique([productId, shopId])
+}
+
+model Order {
+  id        Int     @id @default(autoincrement())
+  userId    Int
+  shopId    Int
+  total     Float
+  status    String
+  createdAt DateTime @default(now())
+
+  user  User @relation(fields: [userId], references: [id])
+  shop  Shop @relation(fields: [shopId], references: [id])
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Float
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+---
+
+## Migration Strategy
+
+The project uses Prisma Migrate to manage schema changes.
+
+- Changes to the schema are defined in schema.prisma
+- Migrations are generated using Prisma CLI
+- Migrations are applied without data loss using versioned migration files
+
+This ensures safe evolution of the database structure.
+
+---
+
+## The "Nasty Query"
+
+The most critical query is checking inventory availability during order creation.
+
+Example SQL (conceptual):
+
+SELECT * FROM Inventory
+WHERE productId = $1 AND shopId = $2;
+
+Potential performance issue:
+- This query is executed multiple times during order creation
+
+Optimization:
+- Add composite index on (productId, shopId)
+
+Prisma equivalent:
+
+@@index([productId, shopId])
+
+This ensures fast lookup and prevents full table scans.
+
+---
+
+## Data Consistency
+
+All critical operations (order creation, stock transfer) are executed inside database transactions.
+
+This ensures:
+- Atomicity (all operations succeed or fail together)
+- Consistency (no invalid states)
+- Isolation (no race conditions)
+- Durability (data persists after commit)

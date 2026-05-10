@@ -1,0 +1,347 @@
+openapi: 3.0.0
+info:
+  title: LeanStock API
+  version: 1.0.0
+  description: Inventory management system with multi-tenancy, transaction safety and race condition protection
+
+servers:
+  - url: http://localhost:3000
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+        example: "eyJpZCI6MTB9"
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        example: 10
+
+  responses:
+    BadRequest:
+      description: Invalid request
+    Unauthorized:
+      description: Unauthorized
+    NotFound:
+      description: Resource not found
+    Conflict:
+      description: Conflict occurred
+    ValidationError:
+      description: Validation error
+    ServerError:
+      description: Internal server error
+
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Milk"
+        price:
+          type: number
+          example: 5000
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        total:
+          type: number
+        status:
+          type: string
+          example: PENDING
+
+    Inventory:
+      type: object
+      properties:
+        productId:
+          type: integer
+        shopId:
+          type: integer
+        quantity:
+          type: integer
+
+    AuthRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+
+paths:
+
+  /auth/login:
+    post:
+      summary: Login user
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        "200":
+          description: JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /products:
+    get:
+      summary: Get products
+      tags: [Products]
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        "200":
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  nextCursor:
+                    type: string
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create product
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        "201":
+          description: Product created
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "409":
+          $ref: '#/components/responses/Conflict'
+
+  /products/{id}:
+    get:
+      summary: Get product by ID
+      tags: [Products]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Products]
+      summary: Update product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                price:
+                  type: number
+
+      responses:
+        "200":
+          description: Updated
+        "400":
+          description: Bad request
+        "404":
+          description: Product not found
+        "500":
+          description: Server error
+
+    delete:
+      summary: Delete product
+      tags: [Products]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /orders:
+    get:
+      summary: Get orders
+      tags: [Orders]
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        "200":
+          description: Orders list
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create order
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shopId, items]
+              properties:
+                shopId:
+                  type: integer
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      productId:
+                        type: integer
+                      quantity:
+                        type: integer
+      responses:
+        "201":
+          description: Order created
+        "400":
+          $ref: '#/components/responses/BadRequest'
+
+  /orders/{id}:
+    get:
+      summary: Get order by ID
+      tags: [Orders]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order found
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /inventory:
+    get:
+      summary: Get inventory
+      tags: [Inventory]
+      parameters:
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        "200":
+          description: Inventory list
+
+  /inventory/transfer:
+    post:
+      summary: Transfer stock between shops
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, fromShopId, toShopId, quantity]
+              properties:
+                productId:
+                  type: integer
+                fromShopId:
+                  type: integer
+                toShopId:
+                  type: integer
+                quantity:
+                  type: integer
+      responses:
+        "200":
+          description: Transfer successful
+        "400":
+          $ref: '#/components/responses/BadRequest'
+
+  /users:
+    get:
+      summary: Get users
+      tags: [Users]
+      responses:
+        "200":
+          description: Users list
+
+  /audit-logs:
+    get:
+      summary: Get audit logs
+      tags: [Audit]
+      responses:
+        "200":
+          description: Logs list

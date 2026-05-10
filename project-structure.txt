@@ -1,0 +1,22 @@
+express-project/
+├── src/
+│   ├── routes/                # Defines API endpoints (orders, inventory, products)
+│   │   ├── order.routes.js    # Order-related endpoints (create, list)
+│   │   └── inventory.routes.js # Inventory operations (transfer, discount)
+│   │
+│   ├── services/              # Business logic layer
+│   │   ├── order.service.js   # Handles order creation and validation
+│   │   └── inventory.service.js # Handles stock transfer and inventory updates
+│   │
+│   ├── lib/                   # Shared utilities and database connection
+│   │   └── prisma.js          # PrismaClient singleton instance
+│   │
+│   └── app.js                 # Main application entry point
+│
+├── prisma/
+│   ├── schema.prisma          # Database schema definition (source of truth)
+│   └── migrations/            # Prisma migration history
+│
+├── .env                       # Environment variables (not committed to repo)
+├── package.json               # Project dependencies and scripts
+└── README.md                  # Project documentation and usage instructions
