@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -8,8 +6,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: leanstock
+    # Host 5433 avoids conflict if local PostgreSQL uses 5432
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,8 +20,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # Host 6380 avoids conflict if Redis already runs on Windows (port 6379)
     ports:
-      - '6379:6379'
+      - '6380:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -32,19 +32,25 @@ services:
   backend:
     build: .
     restart: unless-stopped
+    # Host 3001 if local npm/another app uses 3000
     ports:
-      - '3000:3000'
+      - '3001:3000'
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/leanstock
       REDIS_URL: redis://redis:6379
-      NODE_ENV: production
-      PORT: 3000
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80,http://127.0.0.1}
-      APP_URL: ${APP_URL:-http://localhost}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost}
-    env_file:
-      - .env
+      # Set NODE_ENV=production + SMTP on DeployRocks / Render dashboard
+      NODE_ENV: ${NODE_ENV:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      PORT: ${PORT:-3000}
+      JWT_SECRET: ${JWT_SECRET:-local-docker-dev-secret-min-32-characters}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8888,http://localhost:3001,http://localhost,http://127.0.0.1}
+      APP_URL: ${APP_URL:-http://localhost:8888}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:8888}
+      SMTP_HOST: ${SMTP_HOST:-smtp.ethereal.email}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: "${EMAIL_FROM:-LeanStock <no-reply@leanstock.local>}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,13 +60,15 @@ services:
   frontend:
     image: nginx:alpine
     restart: unless-stopped
+    # Host 8888 — 8080/80 often busy on Windows (IIS, other apps)
     ports:
-      - '80:80'
+      - '8888:80'
     volumes:
       - ./frontend:/usr/share/nginx/html:ro
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_started
 
 volumes:
   pgdata:
