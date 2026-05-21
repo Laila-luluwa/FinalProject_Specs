@@ -27,7 +27,7 @@ describe('Password Strength Validation (Unit)', () => {
   // });
   test('should reject weak password "qwerty"', () => {
   const result = validatePassword('qwerty');
-  expect(result.valid).toBe(fa.lse);
+  expect(result.valid).toBe(false);
   expect(result.score).toBeLessThan(3);
 });
 

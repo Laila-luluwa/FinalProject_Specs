@@ -18,19 +18,22 @@ components:
       bearerFormat: JWT
 
   parameters:
-    cursor:
-      name: cursor
+    page:
+      name: page
       in: query
       required: false
       schema:
-        type: string
-        example: "eyJpZCI6MTB9"
+        type: integer
+        minimum: 1
+        example: 1
     limit:
       name: limit
       in: query
       required: false
       schema:
         type: integer
+        minimum: 1
+        maximum: 100
         example: 10
 
   responses:
@@ -52,7 +55,7 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
           example: 1
         name:
           type: string
@@ -65,17 +68,20 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         name:
           type: string
         email:
           type: string
+        isVerified:
+          type: boolean
+          example: true
 
     Order:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         total:
           type: number
         status:
@@ -87,10 +93,67 @@ components:
       properties:
         productId:
           type: integer
+          example: 1
         shopId:
           type: integer
+          example: 1
         quantity:
           type: integer
+          example: 10
+
+    StockTransferRequest:
+      type: object
+      required: [productId, fromShopId, toShopId, quantity]
+      properties:
+        productId:
+          type: integer
+          example: 1
+        fromShopId:
+          type: integer
+          description: Source shop ID (must belong to your tenant)
+          example: 1
+        toShopId:
+          type: integer
+          description: Destination shop ID (must belong to your tenant)
+          example: 2
+        quantity:
+          type: integer
+          minimum: 1
+          example: 5
+
+    StockTransferResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Transfer successful
+        productId:
+          type: integer
+          example: 1
+        fromShopId:
+          type: integer
+          example: 1
+        toShopId:
+          type: integer
+          example: 2
+        quantity:
+          type: integer
+          example: 5
+
+    InventoryCreateRequest:
+      type: object
+      required: [productId, shopId, quantity]
+      properties:
+        productId:
+          type: integer
+          example: 1
+        shopId:
+          type: integer
+          example: 1
+        quantity:
+          type: integer
+          minimum: 1
+          example: 20
 
     AuthRequest:
       type: object
@@ -108,6 +171,216 @@ components:
           type: string
 
 paths:
+
+
+  /auth/register:
+    post:
+      summary: Register new user
+      description: |
+        Creates an unverified account. The **first user** in a tenant receives **OWNER**;
+        subsequent registrations receive **VIEWER** until an OWNER assigns another role.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, tenantId]
+              properties:
+                name:
+                  type: string
+                  example: "John Doe"
+                email:
+                  type: string
+                  example: "john@example.com"
+                password:
+                  type: string
+                  example: "secret123"
+                tenantId:
+                  type: string
+                  example: 1
+      responses:
+        "201":
+          description: Registered — verification email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Registration successful. Please check your email to verify your account."
+                  userId:
+                    type: string
+                    example: "uuid-here"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /auth/verify-email:
+    get:
+      summary: Verify email address via token from email link
+      tags: [Auth]
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "a3f9c2d1..."
+      responses:
+        "200":
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email verified successfully. You can now log in."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token (rotates refresh token)
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+                  example: "uuid-refresh-token"
+      responses:
+        "200":
+          description: New access and refresh tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+        "403":
+          description: Invalid or revoked refresh token
+
+  /auth/logout:
+    post:
+      summary: Logout — revokes refresh token
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+                  example: "uuid-refresh-token"
+      responses:
+        "200":
+          description: Logged out successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/forgot-password:
+    post:
+      summary: Request password reset email
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  example: "john@example.com"
+      responses:
+        "200":
+          description: Reset link sent (always 200 to prevent email enumeration)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "If that email exists, a reset link has been sent."
+
+  /auth/reset-password:
+    post:
+      summary: Reset password using token from email
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token:
+                  type: string
+                  example: "a3f9c2d1..."
+                newPassword:
+                  type: string
+                  example: "newSecret123"
+      responses:
+        "200":
+          description: Password reset successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/me:
+    get:
+      summary: Get current authenticated user
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    type: string
+                    example: CASHIER
+                  isVerified:
+                    type: boolean
+                  active:
+                    type: boolean
+                  tenantId:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /auth/login:
     post:
@@ -135,11 +408,11 @@ paths:
       summary: Get products
       tags: [Products]
       parameters:
-        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/page'
         - $ref: '#/components/parameters/limit'
       responses:
         "200":
-          description: Product list
+          description: Paginated product list
           content:
             application/json:
               schema:
@@ -149,8 +422,15 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Product'
-                  nextCursor:
-                    type: string
+                  pagination:
+                    type: object
+                    properties:
+                      page: { type: integer, example: 1 }
+                      limit: { type: integer, example: 10 }
+                      total: { type: integer, example: 42 }
+                      totalPages: { type: integer, example: 5 }
+                      hasNext: { type: boolean }
+                      hasPrev: { type: boolean }
         "401":
           $ref: '#/components/responses/Unauthorized'
 
@@ -241,11 +521,11 @@ paths:
       summary: Get orders
       tags: [Orders]
       parameters:
-        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/page'
         - $ref: '#/components/parameters/limit'
       responses:
         "200":
-          description: Orders list
+          description: Paginated orders list
         "401":
           $ref: '#/components/responses/Unauthorized'
 
@@ -293,42 +573,176 @@ paths:
         "404":
           $ref: '#/components/responses/NotFound'
 
-  /inventory:
-    get:
-      summary: Get inventory
-      tags: [Inventory]
-      parameters:
-        - $ref: '#/components/parameters/cursor'
-        - $ref: '#/components/parameters/limit'
-      responses:
-        "200":
-          description: Inventory list
-
-  /inventory/transfer:
+  # Короткий алиас (то же поведение, что POST /inventory/transfer)
+  /transfer:
     post:
-      summary: Transfer stock between shops
+      summary: Transfer stock between shops (alias)
+      description: |
+        Идентично `POST /inventory/transfer`. MANAGER, Bearer JWT, ACID-транзакция.
       tags: [Inventory]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [productId, fromShopId, toShopId, quantity]
-              properties:
-                productId:
-                  type: integer
-                fromShopId:
-                  type: integer
-                toShopId:
-                  type: integer
-                quantity:
-                  type: integer
+              $ref: '#/components/schemas/StockTransferRequest'
+            examples:
+              default:
+                summary: Move five units shop 1 → 2
+                value:
+                  productId: 1
+                  fromShopId: 1
+                  toShopId: 2
+                  quantity: 5
       responses:
         "200":
-          description: Transfer successful
+          description: Transfer completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockTransferResponse'
         "400":
-          $ref: '#/components/responses/BadRequest'
+          description: Missing or invalid fields
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Forbidden — requires MANAGER role
+        "404":
+          description: Product or shop not found for your tenant
+        "409":
+          description: Insufficient stock at source shop
+
+  /inventory:
+    get:
+      summary: Get inventory for your tenant
+      description: |
+        Returns inventory rows only for shops that belong to the authenticated user's tenant.
+        Roles: any authenticated user (Bearer JWT).
+      tags: [Inventory]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        "200":
+          description: Paginated inventory list with product and shop
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Inventory'
+                  pagination:
+                    type: object
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /inventory/transfer:
+    post:
+      summary: Transfer stock between shops
+      description: |
+        Moves `quantity` units of `productId` from `fromShopId` to `toShopId`.
+        Runs in a single ACID transaction. Source must have sufficient stock.
+
+        **Authorization:** Bearer JWT — role **MANAGER** only.
+
+        Both shops must belong to the same tenant as the JWT. Emails queued (async).
+        Writes an audit log entry `STOCK_TRANSFER`.
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockTransferRequest'
+            examples:
+              default:
+                summary: Move five units shop 1 → 2
+                value:
+                  productId: 1
+                  fromShopId: 1
+                  toShopId: 2
+                  quantity: 5
+      responses:
+        "200":
+          description: Transfer completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockTransferResponse'
+              example:
+                message: Transfer successful
+        "400":
+          description: Missing or invalid fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "productId, fromShopId, toShopId, and quantity are required"
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Forbidden — requires MANAGER role
+        "404":
+          description: Product not found or shop not in your tenant
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Product not found"
+        "409":
+          description: Insufficient stock at source shop
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: Insufficient stock to transfer
+
+  /inventory/add:
+    post:
+      summary: Add inventory line (stock record)
+      description: |
+        Creates inventory for a `(productId, shopId)` pair. Fails if the pair already exists (409).
+
+        **Authorization:** Bearer JWT — role **MANAGER**. Shop must be in your tenant.
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryCreateRequest'
+      responses:
+        "201":
+          description: Inventory row created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inventory'
+        "400":
+          description: Missing fields
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Forbidden — requires MANAGER
+        "404":
+          description: Shop not found
+        "409":
+          description: Inventory already exists for this product and shop
 
   /users:
     get:
@@ -342,6 +756,31 @@ paths:
     get:
       summary: Get audit logs
       tags: [Audit]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
       responses:
         "200":
-          description: Logs list
+          description: Paginated audit logs
+        "403":
+          description: Forbidden
+
+  /api/jobs/queues:
+    get:
+      summary: Queue visibility (email + dead-stock workers)
+      tags: [Jobs]
+      responses:
+        "200":
+          description: Job counts by state
+        "403":
+          description: Forbidden
+
+  /api/jobs/dead-stock/trigger:
+    post:
+      summary: Manually enqueue dead-stock decay job (defense demo)
+      tags: [Jobs]
+      responses:
+        "202":
+          description: Job queued
+        "403":
+          description: Forbidden

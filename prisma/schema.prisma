@@ -42,11 +42,20 @@ model User {
   tenantId      Int
   name          String
   email         String         @unique
-  role          Role           @default(CASHIER)
+  role          Role           @default(VIEWER)
   active        Boolean        @default(true)
   passwordHash  String
+
+  isVerified        Boolean    @default(false)
+  verificationToken String?    @unique
+  verificationTokenExpiry DateTime?
+
+  resetToken        String?    @unique
+  resetTokenExpiry  DateTime?
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime?
+
   refreshTokens RefreshToken[]
 
   tenant Tenant @relation(fields: [tenantId], references: [id])

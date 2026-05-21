@@ -4,16 +4,6 @@ const jwt = require("jsonwebtoken");
 
 const SECRET = process.env.JWT_SECRET || "supersecret";
 
-import { generateAccessToken, generateRefreshToken } from "../lib/jwt.js";
-
-const accessToken = generateAccessToken(user);
-const refreshToken = generateRefreshToken(user);
-
-return {
-  accessToken,
-  refreshToken,
-};
-
 async function register(name, email, password) {
   const hashed = await bcrypt.hash(password, 10);
 

@@ -1,182 +1,222 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcrypt');
 const prisma = require('../lib/prisma');
 const { requireAuth } = require('../middleware/auth');
+const { requireRole } = require('../middleware/role');
 
+// Safe fields to return — NEVER return passwordHash
+const USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  active: true,
+  isVerified: true,   // поле в schema называется isVerified
+  createdAt: true,
+  tenantId: true,
+};
 
-// ==================== READ ALL ====================
-router.get('/', async (req, res) => {
-  try {
-    const { skip = 0, limit = 100 } = req.query;
+const VALID_ROLES = ['OWNER', 'MANAGER', 'CASHIER', 'VIEWER', 'AUDITOR'];
 
-    const users = await prisma.user.findMany({
-      skip: Number(skip),
-      take: Number(limit)
-    });
-
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-
-// ==================== READ ONE ====================
-router.get('/:userId', async (req, res) => {
-  try {
-    const userId = Number(req.params.userId);
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: 'Error fetching user' });
-  }
-});
-
-
-// ==================== SEARCH (SQL-safe) ====================
-router.get('/secure/users/search', async (req, res) => {
+// ==================== SEARCH ====================
+// ВАЖНО: /search/q должен быть ВЫШЕ /:userId
+// иначе Express воспримет "search" как :userId
+router.get('/search/q', requireAuth, requireRole('OWNER'), async (req, res) => {
   try {
     const { name } = req.query;
 
     if (!name || name.length > 50) {
-      return res.status(400).json({ error: 'Invalid search term' });
+      return res.status(400).json({ error: 'Invalid search term (max 50 chars)' });
     }
 
     const users = await prisma.user.findMany({
       where: {
-        name: {
-          contains: name,
-          mode: 'insensitive'
-        }
+        tenantId: req.user.tenantId,
+        name: { contains: name, mode: 'insensitive' },
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        active: true
-      }
+      select: USER_SELECT,
     });
 
     res.json({ count: users.length, data: users });
-
-  } catch (error) {
+  } catch (err) {
+    console.error('[Users] Search error:', err);
     res.status(500).json({ error: 'Search failed' });
   }
 });
 
-
-// ==================== CREATE ====================
-router.post('/', async (req, res) => {
+// ==================== GET ALL USERS ====================
+// OWNER only — scoped to their tenant, with pagination
+router.get('/', requireAuth, requireRole('OWNER'), async (req, res) => {
   try {
-    const { name, email, active } = req.body;
+    const page  = Math.max(1, Number(req.query.page)  || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const skip  = (page - 1) * limit;
 
-    const existing = await prisma.user.findUnique({
-      where: { email }
+    const [users, total] = await prisma.$transaction([
+      prisma.user.findMany({
+        where: { tenantId: req.user.tenantId },
+        select: USER_SELECT,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.user.count({ where: { tenantId: req.user.tenantId } }),
+    ]);
+
+    res.json({
+      data: users,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    console.error('[Users] GET / error:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// ==================== GET ONE USER ====================
+// OWNER only — must be same tenant
+// ВАЖНО: этот роут ПОСЛЕ /search/q
+router.get('/:userId', requireAuth, requireRole('OWNER'), async (req, res) => {
+  try {
+    const user = await prisma.user.findFirst({
+      where: { id: req.params.userId, tenantId: req.user.tenantId },
+      select: USER_SELECT,
     });
 
-    if (existing) {
-      return res.status(400).json({ error: 'Email already registered' });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json(user);
+  } catch (err) {
+    console.error('[Users] GET /:userId error:', err);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+// ==================== CREATE USER (OWNER only) ====================
+// Только OWNER создаёт пользователей и назначает роли
+router.post('/', requireAuth, requireRole('OWNER'), async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'name, email, and password are required' });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const assignedRole = role && VALID_ROLES.includes(role) ? role : 'CASHIER';
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) return res.status(409).json({ error: 'Email already registered' });
+
+    const passwordHash = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
       data: {
         name,
         email,
-        active
-      }
+        passwordHash,
+        role: assignedRole,
+        tenantId: req.user.tenantId,  // всегда привязан к tenant OWNER'а
+        isVerified: true,           // созданные админом — сразу верифицированы
+        active: true,
+      },
+      select: USER_SELECT,
     });
 
-    res.status(201).json(newUser);
-  } catch (error) {
+    res.status(201).json({ message: 'User created successfully', user: newUser });
+  } catch (err) {
+    console.error('[Users] POST / error:', err);
     res.status(500).json({ error: 'User creation failed' });
   }
 });
 
 
-// ==================== UPDATE (SAFE - NO MASS ASSIGNMENT) ====================
-const ALLOWED_UPDATE_FIELDS = ['name', 'email', 'avatar'];
 
-router.put('/:id', requireAuth, async (req, res) => {
+// ==================== CHANGE ROLE (OWNER only) ====================
+router.patch('/:userId/role', requireAuth, requireRole('OWNER'), async (req, res) => {
   try {
-    const targetId = parseInt(req.params.id);
-    const currentUserId = req.user.id;
-    const currentRole = req.user.role;
+    const { role } = req.body;
 
-    // ❗ можно менять только себя или если админ
-    if (currentUserId !== targetId && currentRole !== 'admin') {
-      return res.status(403).json({ error: 'Can only update own profile' });
+    if (!role || !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}` });
     }
 
-    // ✅ whitelist (главная защита)
+    const target = await prisma.user.findFirst({
+      where: { id: req.params.userId, tenantId: req.user.tenantId },
+    });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    const updated = await prisma.user.update({
+      where: { id: req.params.userId },
+      data: { role },
+      select: USER_SELECT,
+    });
+
+    res.json({ message: 'Role updated', user: updated });
+  } catch (err) {
+    console.error('[Users] PATCH role error:', err);
+    res.status(500).json({ error: 'Role update failed' });
+  }
+});
+
+// ==================== UPDATE OWN PROFILE ====================
+// Любой авторизованный может менять только своё имя
+const ALLOWED_SELF_UPDATE = ['name'];
+
+router.put('/me/profile', requireAuth, async (req, res) => {
+  try {
     const updateData = {};
-    for (const field of ALLOWED_UPDATE_FIELDS) {
-      if (req.body[field] !== undefined) {
-        updateData[field] = req.body[field];
-      }
+    for (const field of ALLOWED_SELF_UPDATE) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
     }
 
-    // 🔐 admin-only поле
-    if (currentRole === 'admin' && req.body.active !== undefined) {
-      updateData.active = req.body.active;
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: targetId },
+    // req.user.userId — именно так JWT middleware кладёт id
+    const updated = await prisma.user.update({
+      where: { id: req.user.userId },
       data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        active: true,
-        role: true
-      }
+      select: USER_SELECT,
     });
 
-    res.json(updatedUser);
-
-  } catch (error) {
-    res.status(500).json({ error: 'Update failed' });
+    res.json(updated);
+  } catch (err) {
+    console.error('[Users] PUT profile error:', err);
+    res.status(500).json({ error: 'Profile update failed' });
   }
 });
 
-
-// ==================== DELETE ====================
-router.delete('/:userId', async (req, res) => {
+// ==================== DEACTIVATE USER (OWNER only) ====================
+// Soft delete — active: false вместо физического удаления
+router.delete('/:userId', requireAuth, requireRole('OWNER'), async (req, res) => {
   try {
-    const userId = Number(req.params.userId);
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
+    const target = await prisma.user.findFirst({
+      where: { id: req.params.userId, tenantId: req.user.tenantId },
     });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    // OWNER не может деактивировать сам себя
+    if (target.id === req.user.userId) {
+      return res.status(400).json({ error: 'Cannot deactivate your own account' });
     }
 
-    await prisma.user.delete({
-      where: { id: userId }
+    const updated = await prisma.user.update({
+      where: { id: req.params.userId },
+      data: { active: false },
+      select: USER_SELECT,
     });
 
-    res.status(204).send();
-  } catch (error) {
-    res.status(500).json({ error: 'Delete failed' });
+    res.json({ message: 'User deactivated', user: updated });
+  } catch (err) {
+    console.error('[Users] DELETE error:', err);
+    res.status(500).json({ error: 'Deactivation failed' });
   }
-});
-
-
-router.get("/protected", requireAuth, (req, res) => {
-  res.json({
-    message: "Access granted",
-    user: req.user
-  });
 });
 
 module.exports = router;

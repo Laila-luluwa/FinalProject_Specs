@@ -1,0 +1,37 @@
+LeanStock Final — Self-Verification Checklist
+============================================
+Mark [x] when verified. Replace placeholders before submission.
+
+DEPLOYMENT
+[ ] Application is LIVE on dashboard.deployrocks.com (or Render/Vercel)
+[ ] DEPLOYED_URL.txt contains the working public URL
+[ ] docker compose up boots backend + frontend + postgres + redis locally
+
+CODE QUALITY
+[ ] No raw SQL in application code (Prisma ORM only) — verified: no $queryRaw in .js
+[ ] openapi.yaml validated at https://editor.swagger.io
+[ ] CHANGELOG.md lists any API deviations
+
+AUTH & EMAIL
+[ ] Register → REAL verification email arrives
+[ ] Click verify link → login works
+[ ] Forgot/reset password sends REAL email
+[ ] At least 3 business emails: order confirmation, stock transfer, price decay (or welcome)
+[ ] Unverified users get 403 on protected routes (Bearer required)
+
+FRONTEND
+[ ] Open http://localhost (docker) or http://localhost:3000 — UI loads
+[ ] Register tenant + user, login, products, orders, transfer, workers page
+[ ] Frontend uses real API (no mocked data)
+
+TESTS & DOCS
+[ ] npm test — all green
+[ ] Swagger /docs shows endpoints on deployed URL
+[ ] Postman collection imported — all tabs ready for defense
+
+VIDEO
+[ ] VIDEO_LINK.txt has 4–6 min unlisted YouTube walkthrough
+[ ] Video shows: deploy URL, verify email, frontend workflow, worker, tests
+
+INTEGRITY
+[ ] I am the sole author of architectural decisions in this codebase

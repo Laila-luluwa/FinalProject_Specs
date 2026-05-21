@@ -1,0 +1,4 @@
+https://YOUR-APP.deployrocks.com
+
+Replace this URL after deploying to dashboard.deployrocks.com (or Render/Vercel).
+Must load the frontend and reach /api/status or /docs without errors.

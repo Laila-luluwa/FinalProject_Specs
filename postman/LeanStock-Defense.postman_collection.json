@@ -1,0 +1,459 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-leanstock-defense",
+    "name": "LeanStock Defense",
+    "description": "# Импорт\n1. Import этот файл + `LeanStock-Defense.postman_environment.json`\n2. Выбрать environment **LeanStock Defense**\n3. `npm run seed` → обновить tenantId, shopId, productId в environment\n4. `npm run dev` + Redis\n\n# На защите\nОткрывайте папку **DEFENSE — порядок кликов** сверху вниз.\n\nПароль demo: `Defense123!`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "DEFENSE — порядок кликов",
+      "description": "Нажимайте запросы по порядку 01 → 14 на защите.",
+      "item": [
+        {
+          "name": "01 Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/status"
+          }
+        },
+        {
+          "name": "02 Login Manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200 && j.accessToken) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "  pm.test('Tokens saved', () => pm.expect(j.accessToken).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "03 Me",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" }
+        },
+        {
+          "name": "04 Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const j = pm.response.json();",
+                  "  if (j.id) pm.environment.set('productId', String(j.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Defense Item\",\n  \"price\": 2500\n}"
+            },
+            "url": "{{baseUrl}}/products"
+          }
+        },
+        {
+          "name": "05 Login Cashier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{cashierEmail}}\",\n  \"password\": \"{{cashierPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "06 Create Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('orderId', String(pm.response.json().id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": {{shopId}},\n  \"items\": [{ \"productId\": {{productId}}, \"quantity\": 1 }]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "07 Login Manager (transfer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "08 Transfer stock (POST /transfer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": {{productId}},\n  \"fromShopId\": {{shopIdFrom}},\n  \"toShopId\": {{shopIdTo}},\n  \"quantity\": 1\n}"
+            },
+            "url": "{{baseUrl}}/transfer"
+          }
+        },
+        {
+          "name": "09 Login Auditor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{auditorEmail}}\",\n  \"password\": \"{{auditorPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "10 Audit Logs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/audit-logs?page=1&limit=10"
+          }
+        },
+        {
+          "name": "11 Login Manager (jobs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "12 Queue Stats",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/jobs/queues" }
+        },
+        {
+          "name": "13 Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/refresh"
+          }
+        },
+        {
+          "name": "14 Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth (все эндпоинты)",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"newuser@test.com\",\n  \"password\": \"Defense123!\",\n  \"tenantId\": {{tenantId}}\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/verify-email?token={{verifyToken}}"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Me",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{managerEmail}}\"\n}" },
+            "url": "{{baseUrl}}/auth/forgot-password"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"Defense123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/reset-password"
+          }
+        },
+        {
+          "name": "Refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('accessToken', j.accessToken);",
+                  "  pm.environment.set('refreshToken', j.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": "{{baseUrl}}/auth/refresh"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": "{{baseUrl}}/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Business",
+      "item": [
+        {
+          "name": "Products — List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/products?page=1&limit=10" }
+        },
+        {
+          "name": "Products — Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Item\",\n  \"price\": 1000\n}" },
+            "url": "{{baseUrl}}/products"
+          }
+        },
+        {
+          "name": "Orders — Create",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopId\": {{shopId}},\n  \"items\": [{ \"productId\": {{productId}}, \"quantity\": 1 }]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Orders — List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/orders?page=1&limit=10" }
+        },
+        {
+          "name": "Inventory — List",
+          "request": { "method": "GET", "url": "{{baseUrl}}/inventory?page=1&limit=20" }
+        },
+        {
+          "name": "Inventory — Transfer (POST /transfer)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": {{productId}},\n  \"fromShopId\": {{shopIdFrom}},\n  \"toShopId\": {{shopIdTo}},\n  \"quantity\": 1\n}"
+            },
+            "url": "{{baseUrl}}/transfer"
+          }
+        },
+        {
+          "name": "Jobs — Trigger Dead Stock",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/jobs/dead-stock/trigger" }
+        }
+      ]
+    }
+  ]
+}

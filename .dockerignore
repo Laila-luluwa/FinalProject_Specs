@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+.env
+.git
+coverage
+__tests__/integration
+*.md
+!README.md
