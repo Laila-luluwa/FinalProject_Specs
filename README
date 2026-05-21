@@ -1,65 +1,152 @@
 # LeanStock Backend
 
-
 ## Overview
-This is a backend system for managing inventory and orders across multiple shop locations.
 
-## Features
-- Create orders with inventory validation
-- Prevent overselling
-- Transfer stock between shops
-- ACID transactions using Prisma
+LeanStock is a production-style backend system for inventory and order management across multiple shop locations.
 
-## Tech Stack
+The platform supports:
+- Multi-tenant architecture
+- Inventory tracking
+- Order processing
+- RBAC authorization
+- JWT authentication
+- Email verification
+- Password reset flows
+- Async background jobs
+- Swagger API documentation
+
+The system is designed to simulate a scalable retail and inventory management backend.
+
+---
+
+# Tech Stack
+
 - Node.js
-- Express
+- Express.js
 - PostgreSQL
 - Prisma ORM
-
-## API Endpoints
-
-### Create Order
-POST /orders
-
-Example:
-{
-  "userId": 1,
-  "shopId": 1,
-  "items": [
-    {
-      "productId": 1,
-      "quantity": 1,
-      "price": 1000
-    }
-  ]
-}
+- Redis
+- BullMQ
+- JWT Authentication
+- Swagger UI
+- Jest
 
 ---
 
-### Transfer Stock
-POST /inventory/transfer
+# Architecture
 
-Example:
-{
-  "productId": 1,
-  "fromShopId": 1,
-  "toShopId": 2,
-  "quantity": 2
-}
+LeanStock follows a layered backend architecture:
+
+- Express handles routing and middleware
+- Prisma ORM manages database access
+- PostgreSQL stores persistent business data
+- BullMQ + Redis process asynchronous background jobs
+- JWT authentication secures protected endpoints
+
+The system uses role-based access control and tenant isolation to separate business data securely.
 
 ---
 
-### Get Inventory
-GET /inventory
+# Features
 
-Returns all inventory across shops
+## Authentication & Security
 
-## Run
+The system implements:
 
-npm install
-npx prisma migrate dev
-node app.js
+- JWT access tokens
+- Refresh token rotation
+- Email verification
+- Password reset via email
+- RBAC middleware
+- Rate limiting
+- CORS protection
+- Helmet security headers
 
-## pagination 
+---
 
-Pagination: /orders?page=1&limit=5
+## Business Logic
+
+### Orders
+- Create orders
+- Validate inventory availability
+- Prevent overselling
+- Automatically reduce inventory stock
+- Track order status
+
+### Inventory
+- Inventory tracking across shops
+- Inventory transfer between locations
+- Dead stock discount processing
+- Quantity validation
+
+### Multi-Tenant Support
+- Tenant-based data isolation
+- Tenant-aware authorization
+
+### Audit Logging
+- User activity tracking
+- Administrative action history
+
+---
+
+# Background Workers
+
+BullMQ workers process asynchronous jobs:
+
+- Verification emails
+- Password reset emails
+- Order confirmation emails
+- Dead stock discount updates
+
+Recurring jobs are scheduled periodically using cron-like intervals.
+
+Queue jobs support:
+- Retry attempts
+- Failure logging
+- Async processing
+
+---
+
+# API Documentation
+
+Swagger UI is available at:
+
+http://localhost:3000/docs
+
+The API includes:
+- Authentication endpoints
+- Product endpoints
+- Inventory endpoints
+- Order endpoints
+- User management endpoints
+- Audit log endpoints
+
+---
+
+# User Roles
+
+The system supports role-based authorization:
+
+- OWNER
+- MANAGER
+- CASHIER
+- VIEWER
+- AUDITOR
+
+Protected routes use RBAC middleware and return 403 Forbidden for unauthorized roles.
+
+---
+
+# Example API Requests
+
+## Register
+
+POST /auth/register
+
+```json
+{
+  "name": "Test User",
+  "email": "test@mail.com",
+  "password": "test123",
+  "tenantId": 1
+}
