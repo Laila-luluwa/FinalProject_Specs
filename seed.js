@@ -11,10 +11,11 @@ const prisma = new PrismaClient();
 const DEMO_PASSWORD = 'Defense123!';
 
 const USERS = [
-  { email: 'manager@defense.local', name: 'Demo Manager', role: 'MANAGER' },
-  { email: 'auditor@defense.local', name: 'Demo Auditor', role: 'AUDITOR' },
-  { email: 'cashier@defense.local', name: 'Demo Cashier', role: 'CASHIER' },
   { email: 'owner@defense.local', name: 'Demo Owner', role: 'OWNER' },
+  { email: 'manager@defense.local', name: 'Demo Manager', role: 'MANAGER' },
+  { email: 'cashier@defense.local', name: 'Demo Cashier', role: 'CASHIER' },
+  { email: 'viewer@defense.local', name: 'Demo Viewer', role: 'VIEWER' },
+  { email: 'auditor@defense.local', name: 'Demo Auditor', role: 'AUDITOR' },
 ];
 
 async function main() {

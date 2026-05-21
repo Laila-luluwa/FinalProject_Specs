@@ -97,7 +97,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
 
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({
     service: 'LeanStock API',
     version: '2.0.0',
@@ -105,6 +105,10 @@ app.get('/', (req, res) => {
     health: '/api/status',
     transfer: 'POST /transfer (alias) or POST /inventory/transfer',
   });
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
 app.get('/api/status', async (req, res) => {
@@ -125,7 +129,11 @@ app.use(errorHandler);
 let server;
 
 async function start() {
-  await scheduleDeadStockCron();
+  try {
+    await scheduleDeadStockCron();
+  } catch (err) {
+    console.error('[DeadStock] Cron schedule failed (is Redis up?):', err.message);
+  }
   server = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`API docs: http://localhost:${PORT}/docs`);

@@ -18,8 +18,60 @@ Production-grade multi-tenant POS / inventory API: orders with ACID stock deduct
 - Node.js 18+
 - PostgreSQL
 - Redis (for BullMQ email and dead-stock workers)
+- Docker + Docker Compose (for full-stack local demo)
 
-## Setup
+## Docker Compose (full stack)
+
+Runs **PostgreSQL 15**, **Redis**, **backend** (Express + BullMQ workers in-process), and **frontend** (nginx).
+
+```bash
+docker compose up --build
+```
+
+No `.env` file required for a local boot (defaults are in `docker-compose.yml`). To override SMTP or secrets, export vars in the shell or add a `.env` and pass `docker compose --env-file .env up --build`.
+
+| URL | Service |
+|-----|---------|
+| http://localhost:8888 | Frontend (nginx → API proxy) |
+| http://localhost:3001 | Backend UI + API (same app, no nginx) |
+| http://localhost:3001/docs | Swagger |
+| http://localhost:3001/api/status | Health |
+
+On Windows, port **80** is often busy — compose uses **8080** for the UI.
+
+After first boot, seed demo data (once):
+
+```bash
+docker compose exec backend node seed.js
+```
+
+For production deploy, set `NODE_ENV=production` and real SMTP (app will refuse to start without them).
+
+### `service "backend" is not running`
+
+Usually the stack is **stopped** or **backend exited** after an error.
+
+```powershell
+docker compose up -d --build
+docker compose ps
+```
+
+All services should show **Up**. If `backend` is **Exited**:
+
+```powershell
+docker compose logs backend --tail 80
+```
+
+| Cause | Fix |
+|-------|-----|
+| You closed the terminal running `docker compose up` | Use `docker compose up -d` (runs in background) |
+| Port **3000** busy (local `npm run dev`) | Stop local Node, or change compose `ports` to `3001:3000` |
+| Port **6379** busy (local Redis) | Compose maps Redis to host **6380**; inside Docker still `redis:6379` |
+| Port **5432** busy (local Postgres) | Compose maps Postgres to host **5433** |
+| Migrate failed | `docker compose logs backend` — often DB not ready; entrypoint retries automatically |
+| Seed while backend down | `docker compose run --rm backend node seed.js` (works without `exec`) |
+
+## Setup (without Docker)
 
 ```bash
 cp .env.example .env
@@ -42,7 +94,7 @@ Import from `postman/`:
 
 Step-by-step demo: see `postman/DEFENSE-RUNBOOK.md`.
 
-Demo users (after seed): `manager@defense.local`, `cashier@defense.local`, `auditor@defense.local` — password `Defense123!`
+Demo users (after seed, password `Defense123!`): `owner@`, `manager@`, `cashier@`, `viewer@`, `auditor@` — all `@defense.local` (pre-verified, no real inbox needed)
 
 Server: `http://localhost:3000`  
 Swagger: `http://localhost:3000/docs`

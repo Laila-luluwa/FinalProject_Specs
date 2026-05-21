@@ -77,6 +77,16 @@ components:
           type: boolean
           example: true
 
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Acme Corp"
+
     Order:
       type: object
       properties:
@@ -402,6 +412,54 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         "401":
           $ref: '#/components/responses/Unauthorized'
+
+  /tenants:
+    post:
+      summary: Create tenant (company)
+      description: |
+        Public endpoint for onboarding. Use the returned `id` as `tenantId` in `POST /auth/register`.
+        First registered user in that tenant becomes **OWNER**.
+      tags: [Tenants]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: "My Shop LLC"
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
+    get:
+      summary: List all tenants
+      description: Requires role **MANAGER** (Bearer JWT).
+      tags: [Tenants]
+      responses:
+        "200":
+          description: Tenant list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tenant'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          description: Forbidden — MANAGER role required
 
   /products:
     get:
