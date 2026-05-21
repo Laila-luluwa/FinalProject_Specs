@@ -36,8 +36,9 @@ services:
     ports:
       - '3001:3000'
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/leanstock
-      REDIS_URL: redis://redis:6379
+      # Defaults for local Docker (service names postgres/redis). Render/DeployRocks: set DATABASE_URL + REDIS_URL in hosting dashboard.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/leanstock}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       # Set NODE_ENV=production + SMTP on DeployRocks / Render dashboard
       NODE_ENV: ${NODE_ENV:-development}
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -62,6 +63,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     restart: unless-stopped
+    environment:
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-backend:3000}
     # Host 8888 — 8080/80 often busy on Windows (IIS, other apps)
     ports:
       - '8888:80'
