@@ -129,14 +129,19 @@ app.use(errorHandler);
 let server;
 
 async function start() {
-  try {
-    await scheduleDeadStockCron();
-  } catch (err) {
-    console.error('[DeadStock] Cron schedule failed (is Redis up?):', err.message);
-  }
-  server = app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`API docs: http://localhost:${PORT}/docs`);
+  // Render requires binding 0.0.0.0:PORT before health check; do not block on Redis first.
+  const host = process.env.HOST || '0.0.0.0';
+  await new Promise((resolve, reject) => {
+    server = app.listen(PORT, host, () => {
+      console.log(`Server running on http://${host}:${PORT}`);
+      console.log(`API docs: http://${host}:${PORT}/docs`);
+      resolve();
+    });
+    server.on('error', reject);
+  });
+
+  scheduleDeadStockCron().catch((err) => {
+    console.error('[DeadStock] Cron schedule failed (check REDIS_URL):', err.message);
   });
 }
 

@@ -14,6 +14,15 @@ git commit -m "Prepare production deploy"
 git push origin main
 ```
 
+### DeployRocks: "Deploy the app first before setting environment variables"
+
+1. **Do NOT save env yet** — cancel that form.
+2. **Deploy now** once (uses `docker-compose.yml` defaults: `NODE_ENV=development`, DB/Redis hostnames).
+3. After status **Live**, open **Environment** and add production SMTP + `APP_URL` + `CORS_ORIGINS`, set `NODE_ENV=production`.
+4. **Redeploy**.
+
+Local Docker: add a `.env` file with `DATABASE_URL=postgresql://postgres:postgres@postgres:5432/leanstock` and `REDIS_URL=redis://redis:6379` (see `.env.example`).
+
 ### 2. DeployRocks dashboard
 
 1. Open **https://dashboard.deployrocks.com**
@@ -36,7 +45,20 @@ git push origin main
 | `CLIENT_URL` | same as `APP_URL` |
 | `CORS_ORIGINS` | same as `APP_URL` (exact HTTPS, no `*`) |
 
-`DATABASE_URL` and `REDIS_URL` are already set in `docker-compose.yml` using service names `postgres` and `redis` — **do not use localhost** there.
+### Link database & Redis (DeployRocks dashboard)
+
+Postgres and Redis show **Linked** but the **backend** still needs connection strings in **Environment**:
+
+1. Open **postgres** resource (`…-postgres`) → copy **Connection URL** / **DATABASE_URL**
+2. Open **redis** resource → copy **REDIS_URL** (or `redis://…`)
+3. App → **Environment** → add:
+   - `DATABASE_URL` = pasted Postgres URL
+   - `REDIS_URL` = pasted Redis URL  
+   **Do not use `localhost`** — use the URL from the dashboard.
+
+If there is a **Link to app** button on postgres/redis, link them to **backend** — some setups inject vars automatically.
+
+Local Docker uses defaults `postgres:5432` / `redis:6379` from `docker-compose.yml`.
 
 6. **Deploy** and wait until all services are green.
 7. Open the generated URL (usually the **frontend** on port 80 → your public domain).
@@ -75,26 +97,26 @@ DeployRocks needs full Compose; Render free tier often uses **one Web Service** 
 ### 3. Web Service
 
 - New → **Web Service** → connect GitHub repo
-- **Build:** `npm ci && npx prisma generate && npx prisma migrate deploy`
-- **Start:** `node app.js`
-- **Health check:** `/api/status`
+- **Build:** `npm install && npx prisma generate && npx prisma migrate deploy`
+- **Start command:** `node app.js` (or `npm start`)
+- **Health check path:** `/api/status`
+- Do **not** set `PORT` manually — Render injects it; app binds `0.0.0.0:PORT`.
 
-**Environment:**
+**Environment (delete `REDIS_HOST` / `REDIS_PORT` if present):**
 
 ```
 NODE_ENV=production
-DATABASE_URL=<Render Postgres internal URL>
-REDIS_URL=<Upstash URL>
+DATABASE_URL=<Render Postgres Internal URL>
+REDIS_URL=<Upstash TCP URL, starts with rediss://>
 JWT_SECRET=<random 32+ chars>
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=<gmail>
-SMTP_PASS=<app password>
+SMTP_PASS=<Gmail app password>
 EMAIL_FROM=LeanStock <gmail>
 APP_URL=https://YOUR-SERVICE.onrender.com
 CLIENT_URL=https://YOUR-SERVICE.onrender.com
 CORS_ORIGINS=https://YOUR-SERVICE.onrender.com
-PORT=10000
 ```
 
 UI + API on same URL (Express serves `frontend/`). Put URL in **`DEPLOYED_URL.txt`**.
@@ -114,6 +136,8 @@ UI + API on same URL (Express serves `frontend/`). Put URL in **`DEPLOYED_URL.tx
 
 | Problem | Fix |
 |---------|-----|
+| Render: Port scan timeout / SIGTERM | App must listen on `0.0.0.0` before Redis; push latest `app.js`. Check logs for `FATAL: Missing` env. |
+| Render: ECONNREFUSED 127.0.0.1:6379 | Set `REDIS_URL` (Upstash); remove `REDIS_HOST` / `REDIS_PORT` |
 | Backend Restarting | `docker compose logs backend` — often SMTP missing when `NODE_ENV=production` |
 | CORS error | `CORS_ORIGINS` must match exact browser URL (https) |
 | No verify email | Check Redis + SMTP env on platform |
