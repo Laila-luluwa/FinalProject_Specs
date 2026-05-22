@@ -1,4 +1,5 @@
 const { validateEnv } = require('./lib/config/env');
+const { verifySmtpConnection } = require('./lib/mail');
 validateEnv();
 
 const path = require('path');
@@ -50,9 +51,11 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      // Required for onclick="switchTab('register')" etc. in index.html (CSP3 script-src-attr)
+      scriptSrcAttr: ["'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", process.env.CLIENT_URL || 'http://localhost:5173'],
+      connectSrc: ["'self'", process.env.CLIENT_URL || 'http://localhost:5173', 'https:'],
     },
   },
   hsts: process.env.NODE_ENV === 'production'
@@ -112,10 +115,13 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/status', async (req, res) => {
+  const { smtpConfigured } = require('./lib/mail');
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    smtp: smtpConfigured() ? 'configured' : 'missing',
+    emailMode: process.env.RENDER === 'true' || process.env.NODE_ENV === 'production' ? 'direct-smtp' : 'auto',
   });
 });
 
@@ -146,6 +152,8 @@ async function start() {
     });
     server.on('error', reject);
   });
+
+  verifySmtpConnection().catch(() => {});
 
   if (process.env.SKIP_REDIS_QUEUES !== '1') {
     scheduleDeadStockCron().catch((err) => {

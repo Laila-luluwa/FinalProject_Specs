@@ -151,8 +151,8 @@
     <div class="auth-logo">Lean<span>Stock</span></div>
     <div class="auth-sub">// inventory management system</div>
     <div class="auth-tabs">
-      <button class="auth-tab active" onclick="switchTab('login')">Login</button>
-      <button class="auth-tab" onclick="switchTab('register')">Register</button>
+      <button type="button" class="auth-tab active" data-auth-tab="login">Login</button>
+      <button type="button" class="auth-tab" data-auth-tab="register">Register</button>
     </div>
 
     <!-- Login Form -->
@@ -204,13 +204,13 @@
         <div class="sidebar-user-role" id="sb-role">—</div>
       </div>
       <div class="nav">
-        <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">◈</span> Dashboard</div>
-        <div class="nav-item" onclick="showPage('products')"><span class="nav-icon">◉</span> Products</div>
-        <div class="nav-item" onclick="showPage('inventory')"><span class="nav-icon">◫</span> Inventory</div>
-        <div class="nav-item" onclick="showPage('shops')"><span class="nav-icon">◎</span> Shops</div>
-        <div class="nav-item" onclick="showPage('orders')"><span class="nav-icon">◷</span> Orders</div>
-        <div class="nav-item" onclick="showPage('transfers')"><span class="nav-icon">⇄</span> Transfers</div>
-        <div class="nav-item" onclick="showPage('workers')"><span class="nav-icon">⚙</span> Workers</div>
+        <div class="nav-item active" data-page="dashboard"><span class="nav-icon">◈</span> Dashboard</div>
+        <div class="nav-item" data-page="products"><span class="nav-icon">◉</span> Products</div>
+        <div class="nav-item" data-page="inventory"><span class="nav-icon">◫</span> Inventory</div>
+        <div class="nav-item" data-page="shops"><span class="nav-icon">◎</span> Shops</div>
+        <div class="nav-item" data-page="orders"><span class="nav-icon">◷</span> Orders</div>
+        <div class="nav-item" data-page="transfers"><span class="nav-icon">⇄</span> Transfers</div>
+        <div class="nav-item" data-page="workers"><span class="nav-icon">⚙</span> Workers</div>
       </div>
       <div class="sidebar-bottom">
         <button class="btn btn-secondary btn-sm" onclick="doLogout()">Logout</button>
@@ -482,11 +482,11 @@
   }
 
   // ── pages ──
-  function showPage(name) {
+  function showPage(name, navEl) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
-    event.currentTarget.classList.add('active');
+    if (navEl) navEl.classList.add('active');
     if (name === 'products') loadProducts();
     if (name === 'inventory') loadInventory();
     if (name === 'shops') loadShops();
@@ -698,6 +698,13 @@
   }
 
   // ── init ──
+  document.querySelectorAll('[data-auth-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.getAttribute('data-auth-tab')));
+  });
+  document.querySelectorAll('.nav-item[data-page]').forEach((el) => {
+    el.addEventListener('click', () => showPage(el.getAttribute('data-page'), el));
+  });
+
   if (token && currentUser) {
     enterApp();
   }
