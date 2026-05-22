@@ -1,8 +1,8 @@
-node_modules
-npm-debug.log
 .env
+.env.*
+!.env.example
+node_modules
 .git
 coverage
-__tests__/integration
-*.md
-!README.md
+__tests__
+tests

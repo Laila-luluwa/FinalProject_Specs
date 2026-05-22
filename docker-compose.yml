@@ -36,17 +36,18 @@ services:
     ports:
       - '3001:3000'
     environment:
-      # Defaults for local Docker (service names postgres/redis). Render/DeployRocks: set DATABASE_URL + REDIS_URL in hosting dashboard.
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/leanstock}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      # Set NODE_ENV=production + SMTP on DeployRocks / Render dashboard
-      NODE_ENV: ${NODE_ENV:-development}
+      DOCKER_COMPOSE: "1"
+      SKIP_REDIS_QUEUES: "1"
+      # Hardcoded for Compose — host .env must not override these.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/leanstock
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
       ENVIRONMENT: ${ENVIRONMENT:-development}
       PORT: ${PORT:-3000}
       JWT_SECRET: ${JWT_SECRET:-local-docker-dev-secret-min-32-characters}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8888,http://localhost:3001,http://localhost,http://127.0.0.1}
-      APP_URL: ${APP_URL:-http://localhost:8888}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:8888}
+      CORS_ORIGINS: http://localhost:8888,http://127.0.0.1:8888,http://localhost:3001,http://127.0.0.1:3001,http://localhost,http://127.0.0.1
+      APP_URL: http://localhost:8888
+      CLIENT_URL: http://localhost:8888
       SMTP_HOST: ${SMTP_HOST:-smtp.ethereal.email}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

@@ -1,0 +1,51 @@
+DeployRocks — Environment variables (Key → Value)
+=================================================
+In "+ Add Environment Variables" the KEY is the left column (name from rubric).
+VALUE is copied from postgres/redis pages or your secrets.
+
+Required for backend to start (production)
+------------------------------------------
+NODE_ENV              production
+ENVIRONMENT           production
+JWT_SECRET_KEY        <random 32+ chars>          (or JWT_SECRET — same thing)
+DATABASE_URL          <from postgres resource — full postgresql://... URL>
+REDIS_URL             <from redis resource — redis://...>
+
+Public URL (use your real DeployRocks https domain)
+---------------------------------------------------
+APP_URL               https://your-app.deployrocks.com
+CLIENT_URL            https://your-app.deployrocks.com
+CORS_ORIGINS          https://your-app.deployrocks.com
+
+Email — Gmail (recommended for class demo)
+------------------------------------------
+SMTP_HOST             smtp.gmail.com
+SMTP_PORT             587
+SMTP_USER             your.email@gmail.com
+SMTP_PASS             <Google App Password, 16 chars>
+EMAIL_FROM_ADDRESS    LeanStock <your.email@gmail.com>
+
+Email — SendGrid (rubric EMAIL_API_KEY)
+---------------------------------------
+EMAIL_API_KEY         <SendGrid API key>
+EMAIL_FROM_ADDRESS    verified@yourdomain.com
+(SMTP_HOST/USER/PASS filled automatically from EMAIL_API_KEY in code)
+
+Optional (rubric; app works without)
+------------------------------------
+JWT_REFRESH_SECRET_KEY   <any secret>   (refresh tokens stored in DB; not required by this app)
+BACKEND_PORT               3000
+FRONTEND_PORT              80
+
+DeployRocks: env goes on BACKEND app (laila-luluwa-finalproject-specs-backend)
+---------------------------------------------------------------------------
+Dashboard → Apps → backend → Environment (NOT postgres page)
+
+Optional on FRONTEND app only:
+BACKEND_UPSTREAM = laila-luluwa-finalproject-specs-backend:3000
+
+Where to get DATABASE_URL / REDIS_URL
+-------------------------------------
+Dashboard → Resources → click postgres → copy Connection URL
+Dashboard → Resources → click redis → copy Connection URL
+Paste as VALUES. Do NOT use localhost.

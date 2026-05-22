@@ -2,12 +2,10 @@ const { Queue, Worker } = require('bullmq');
 const nodemailer = require('nodemailer');
 const { getRedisConnection } = require('../lib/redis');
 
-const redisConnection = getRedisConnection();
+let emailQueue;
+let emailWorker;
+let initialized = false;
 
-// BullMQ Queue
-const emailQueue = new Queue('email', { connection: redisConnection });
-
-// Nodemailer transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
   port: Number(process.env.SMTP_PORT) || 587,
@@ -17,35 +15,67 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Worker — processes jobs from queue
-const emailWorker = new Worker(
-  'email',
-  async (job) => {
-    const { to, subject, html } = job.data;
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || '"POS System" <no-reply@pos.com>',
-      to,
-      subject,
-      html,
-    });
-    console.log(`[Email Queue] Sent "${subject}" to ${to}`);
-  },
-  { connection: redisConnection }
-);
+function initEmailQueue() {
+  if (initialized) return Boolean(emailQueue);
+  initialized = true;
 
-emailWorker.on('failed', (job, err) => {
-  console.error(`[Email Queue] Job ${job?.id} failed:`, err.message);
-});
+  if (process.env.SKIP_REDIS_QUEUES === '1') {
+    return false;
+  }
 
-// Helper — добавить письмо в очередь (не блокирует запрос!)
+  if (!process.env.REDIS_URL?.trim() && process.env.DOCKER_COMPOSE !== '1') {
+    console.error('[Email Queue] Disabled — set REDIS_URL (Upstash TCP URL) in Render Environment');
+    return false;
+  }
+
+  const redisConnection = getRedisConnection();
+  if (!redisConnection) return false;
+  emailQueue = new Queue('email', { connection: redisConnection });
+  emailWorker = new Worker(
+    'email',
+    async (job) => {
+      const { to, subject, html } = job.data;
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"POS System" <no-reply@pos.com>',
+        to,
+        subject,
+        html,
+      });
+      console.log(`[Email Queue] Sent "${subject}" to ${to}`);
+    },
+    { connection: redisConnection }
+  );
+  emailWorker.on('failed', (job, err) => {
+    console.error(`[Email Queue] Job ${job?.id} failed:`, err.message);
+  });
+  return true;
+}
+
+async function sendEmailDirect({ to, subject, html }) {
+  if (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim()) {
+    console.warn('[Email] SMTP not configured — email not sent to', to);
+    return false;
+  }
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM || '"LeanStock" <no-reply@leanstock.local>',
+    to,
+    subject,
+    html,
+  });
+  console.log(`[Email] Sent "${subject}" to ${to} (direct SMTP)`);
+  return true;
+}
+
 async function sendEmail({ to, subject, html }) {
+  if (process.env.SKIP_REDIS_QUEUES === '1') {
+    return sendEmailDirect({ to, subject, html });
+  }
+  if (!initEmailQueue()) return sendEmailDirect({ to, subject, html });
   await emailQueue.add('send', { to, subject, html }, {
     attempts: 3,
     backoff: { type: 'exponential', delay: 3000 },
   });
 }
-
-// === Email Templates ===
 
 async function sendVerificationEmail(email, token) {
   const link = `${process.env.APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${token}`;
@@ -133,12 +163,21 @@ async function sendPriceDecayEmail(email, product, oldPrice, newPrice) {
 }
 
 async function getEmailQueueStats() {
+  if (!initEmailQueue()) {
+    return { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, disabled: true };
+  }
   return emailQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed');
 }
 
 module.exports = {
-  emailQueue,
-  emailWorker,
+  get emailQueue() {
+    initEmailQueue();
+    return emailQueue;
+  },
+  get emailWorker() {
+    initEmailQueue();
+    return emailWorker;
+  },
   sendEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,

@@ -93,7 +93,13 @@ router.delete('/:id', requireAuth, requireRole('OWNER'), async (req, res, next) 
     });
     if (!existing) return res.status(404).json({ error: 'Product not found' });
 
-    await prisma.product.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.orderItem.deleteMany({ where: { productId: id } });
+      await tx.priceHistory.deleteMany({ where: { productId: id } });
+      await tx.inventory.deleteMany({ where: { productId: id } });
+      await tx.product.delete({ where: { id } });
+    });
+
     res.status(204).send();
   } catch (err) {
     next(err);

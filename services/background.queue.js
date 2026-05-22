@@ -10,12 +10,17 @@ function initDeadStockQueue() {
   if (initialized) return Boolean(deadStockQueue);
   initialized = true;
 
-  if (!process.env.REDIS_URL?.trim()) {
+  if (process.env.SKIP_REDIS_QUEUES === '1') {
+    return false;
+  }
+
+  if (!process.env.REDIS_URL?.trim() && process.env.DOCKER_COMPOSE !== '1') {
     console.error('[DeadStock] Disabled — set REDIS_URL (Upstash TCP URL) in Render Environment');
     return false;
   }
 
   const redisConnection = getRedisConnection();
+  if (!redisConnection) return false;
   deadStockQueue = new Queue('dead-stock', { connection: redisConnection });
   deadStockWorker = new Worker(
     'dead-stock',

@@ -129,6 +129,13 @@ app.use(errorHandler);
 let server;
 
 async function start() {
+  const redisHint = process.env.REDIS_URL?.trim()
+    ? 'set (rediss/redis URL)'
+    : 'MISSING — queues disabled';
+  console.log(
+    `[Boot] NODE_ENV=${process.env.NODE_ENV || 'undefined'} PORT=${PORT} REDIS_URL=${redisHint} RENDER=${process.env.RENDER || 'false'}`
+  );
+
   // Render requires binding 0.0.0.0:PORT before health check; do not block on Redis first.
   const host = process.env.HOST || '0.0.0.0';
   await new Promise((resolve, reject) => {
@@ -140,9 +147,13 @@ async function start() {
     server.on('error', reject);
   });
 
-  scheduleDeadStockCron().catch((err) => {
-    console.error('[DeadStock] Cron schedule failed (check REDIS_URL):', err.message);
-  });
+  if (process.env.SKIP_REDIS_QUEUES !== '1') {
+    scheduleDeadStockCron().catch((err) => {
+      console.error('[DeadStock] Cron schedule failed (check REDIS_URL):', err.message);
+    });
+  } else {
+    console.log('[DeadStock] Queues skipped (SKIP_REDIS_QUEUES=1)');
+  }
 }
 
 async function shutdown(signal) {

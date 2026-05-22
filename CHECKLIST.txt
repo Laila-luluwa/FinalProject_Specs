@@ -1,37 +1,47 @@
 LeanStock Final — Self-Verification Checklist
 ============================================
-Mark [x] when verified. Replace placeholders before submission.
+Mark [x] when done. Submit repo + VIDEO_LINK.txt + DEPLOYED_URL.txt.
 
-DEPLOYMENT
-[ ] Application is LIVE on dashboard.deployrocks.com (or Render/Vercel)
-[ ] DEPLOYED_URL.txt contains the working public URL
-[ ] docker compose up boots backend + frontend + postgres + redis locally
+─── BEFORE RECORDING VIDEO ───
+[ ] Render (or local) opens UI and /api/status = healthy
+[ ] Gmail receives verification email on register (real Brevo SMTP)
+[ ] postman/LeanStock-Defense.postman_collection.json imported
+[ ] npm test passes (or note which tests skip)
 
-CODE QUALITY
-[ ] No raw SQL in application code (Prisma ORM only) — verified: no $queryRaw in .js
-[ ] openapi.yaml validated at https://editor.swagger.io
-[ ] CHANGELOG.md lists any API deviations
+─── DEPLOYMENT ───
+[ ] Live URL works (Render: https://_____.onrender.com OR DeployRocks)
+[ ] DEPLOYED_URL.txt updated and pushed to GitHub
+[ ] docker compose up -d → 4 services Up (show at defense or in video)
+[ ] GitHub repo public: Laila-luluwa/FinalProject_Specs
 
-AUTH & EMAIL
-[ ] Register → REAL verification email arrives
-[ ] Click verify link → login works
-[ ] Forgot/reset password sends REAL email
-[ ] At least 3 business emails: order confirmation, stock transfer, price decay (or welcome)
-[ ] Unverified users get 403 on protected routes (Bearer required)
+─── CODE & DOCS ───
+[ ] No raw SQL ($queryRaw) in .js — Prisma only
+[ ] openapi.yaml checked at https://editor.swagger.io
+[ ] CHANGELOG.md notes any API vs blueprint differences
+[ ] README + DEPLOY.md present
 
-FRONTEND
-[ ] Open http://localhost (docker) or http://localhost:3000 — UI loads
-[ ] Register tenant + user, login, products, orders, transfer, workers page
-[ ] Frontend uses real API (no mocked data)
+─── AUTH & EMAIL (show in video) ───
+[ ] Register → REAL verification email in inbox
+[ ] Verify link → login works on frontend
+[ ] Forgot/reset password email (optional but good)
+[ ] Business email: order OR transfer OR price decay (at least 1 in video, 3 in code)
+[ ] Unverified user → 403 (mention or Postman demo)
 
-TESTS & DOCS
-[ ] npm test — all green
-[ ] Swagger /docs shows endpoints on deployed URL
-[ ] Postman collection imported — all tabs ready for defense
+─── FRONTEND DEMO ───
+[ ] Register company + user OR login seed user
+[ ] Products / orders / transfer from UI (not mocked)
+[ ] Workers / queue stats visible
 
-VIDEO
-[ ] VIDEO_LINK.txt has 4–6 min unlisted YouTube walkthrough
-[ ] Video shows: deploy URL, verify email, frontend workflow, worker, tests
+─── TESTS & POSTMAN (defense day) ───
+[ ] npm test — green (run live or show in video)
+[ ] /docs on live URL
+[ ] Postman: auth tab + one business request ready
 
-INTEGRITY
+─── VIDEO (submit) ───
+[ ] Recorded 4–6 min walkthrough (see VIDEO-SCRIPT.md)
+[ ] Uploaded YouTube **Unlisted**
+[ ] VIDEO_LINK.txt has full https://www.youtube.com/watch?v=...
+[ ] Video includes: URL, verify email, frontend workflow, worker, tests, 1 trade-off
+
+─── INTEGRITY ───
 [ ] I am the sole author of architectural decisions in this codebase
