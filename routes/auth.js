@@ -72,9 +72,15 @@ router.post('/register', authLimiter, async (req, res) => {
       },
     });
 
-    sendVerificationEmail(email, verificationToken).catch((err) =>
-      console.error('[Auth] Failed to queue verify email:', err.message)
-    );
+    try {
+      await sendVerificationEmail(email, verificationToken);
+    } catch (err) {
+      console.error('[Auth] Failed to send verify email:', err.message);
+      return res.status(503).json({
+        error: 'Registration saved but verification email could not be sent. Check SMTP (Brevo) on server.',
+        detail: process.env.NODE_ENV === 'production' ? undefined : err.message,
+      });
+    }
 
     res.status(201).json({
       message: 'Registration successful. Please check your email to verify your account.',

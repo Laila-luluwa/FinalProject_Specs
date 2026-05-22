@@ -1,0 +1,42 @@
+Brevo + Render (leanstock-api) — Environment variables
+======================================================
+
+In Brevo dashboard:
+  SMTP & API → SMTP → copy:
+    - Server: smtp-relay.brevo.com
+    - Port: 587
+    - Login: your Brevo account email
+    - Password: SMTP key (starts with xsmtpsib-...)
+  Senders: verify the FROM address you use in EMAIL_FROM
+
+In Render → leanstock-api → Environment → add:
+
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=your-login@email.com
+SMTP_PASS=xsmtpsib-your-brevo-smtp-key
+EMAIL_FROM=LeanStock <sender@your-verified-domain.com>
+
+APP_URL=https://leanstock-api-rky2.onrender.com
+CLIENT_URL=https://leanstock-api-rky2.onrender.com
+CORS_ORIGINS=https://leanstock-api-rky2.onrender.com
+
+NODE_ENV=production
+DATABASE_URL=<Render Postgres Internal URL>
+JWT_SECRET=<32+ random chars>
+REDIS_URL=<Upstash rediss://...>   (optional for queues; email works without Redis now)
+
+Optional aliases (instead of SMTP_PASS):
+BREVO_API_KEY=xsmtpsib-...
+EMAIL_FROM_ADDRESS=LeanStock <sender@...>
+
+Remove: REDIS_HOST, REDIS_PORT, SKIP_REDIS_QUEUES, DOCKER_COMPOSE
+
+After Save → Manual Deploy
+
+Logs must show:
+  [SMTP] Ready → smtp-relay.brevo.com:587
+
+Test: Register on site with real Gmail → inbox within 1–2 min
+
+Verify link must use APP_URL (your onrender.com domain).

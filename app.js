@@ -47,17 +47,8 @@ if (process.env.NODE_ENV === 'production' && allowedOrigins.includes('*')) {
 app.use(express.json());
 app.use(cookieParser());
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      // Required for onclick="switchTab('register')" etc. in index.html (CSP3 script-src-attr)
-      scriptSrcAttr: ["'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", process.env.CLIENT_URL || 'http://localhost:5173', 'https:'],
-    },
-  },
+  // LeanStock UI uses inline handlers in index.html — disable CSP so Register/tabs work on Render
+  contentSecurityPolicy: false,
   hsts: process.env.NODE_ENV === 'production'
     ? { maxAge: 31536000, includeSubDomains: true, preload: true }
     : false,

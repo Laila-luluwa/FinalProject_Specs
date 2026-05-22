@@ -1,19 +1,14 @@
 const { Queue, Worker } = require('bullmq');
-const nodemailer = require('nodemailer');
 const { getRedisConnection } = require('../lib/redis');
+const {
+  sendMailDirect,
+  useDirectSmtpOnly,
+  smtpConfigured,
+} = require('../lib/mail');
 
 let emailQueue;
 let emailWorker;
 let initialized = false;
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: Number(process.env.SMTP_PORT) || 587,
-  auth: {
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || '',
-  },
-});
 
 function initEmailQueue() {
   if (initialized) return Boolean(emailQueue);
@@ -24,53 +19,48 @@ function initEmailQueue() {
   }
 
   if (!process.env.REDIS_URL?.trim() && process.env.DOCKER_COMPOSE !== '1') {
-    console.error('[Email Queue] Disabled — set REDIS_URL (Upstash TCP URL) in Render Environment');
+    console.warn('[Email Queue] No REDIS_URL — using direct SMTP');
     return false;
   }
 
   const redisConnection = getRedisConnection();
   if (!redisConnection) return false;
+
+  const { getTransporter, resolveSmtpConfig } = require('../lib/mail');
+  const transport = getTransporter();
+  if (!transport) return false;
+
   emailQueue = new Queue('email', { connection: redisConnection });
   emailWorker = new Worker(
     'email',
     async (job) => {
       const { to, subject, html } = job.data;
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM || '"POS System" <no-reply@pos.com>',
-        to,
-        subject,
-        html,
-      });
-      console.log(`[Email Queue] Sent "${subject}" to ${to}`);
+      await sendMailDirect({ to, subject, html });
+      console.log(`[Email Queue] Worker sent "${subject}" to ${to}`);
     },
     { connection: redisConnection }
   );
   emailWorker.on('failed', (job, err) => {
     console.error(`[Email Queue] Job ${job?.id} failed:`, err.message);
   });
-  return true;
-}
-
-async function sendEmailDirect({ to, subject, html }) {
-  if (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim()) {
-    console.warn('[Email] SMTP not configured — email not sent to', to);
-    return false;
-  }
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM || '"LeanStock" <no-reply@leanstock.local>',
-    to,
-    subject,
-    html,
-  });
-  console.log(`[Email] Sent "${subject}" to ${to} (direct SMTP)`);
+  console.log('[Email Queue] Worker started');
   return true;
 }
 
 async function sendEmail({ to, subject, html }) {
-  if (process.env.SKIP_REDIS_QUEUES === '1') {
-    return sendEmailDirect({ to, subject, html });
+  if (!smtpConfigured()) {
+    console.error('[Email] Cannot send — SMTP_HOST / SMTP_USER / SMTP_PASS missing');
+    throw new Error('Email service not configured');
   }
-  if (!initEmailQueue()) return sendEmailDirect({ to, subject, html });
+
+  if (useDirectSmtpOnly()) {
+    return sendMailDirect({ to, subject, html });
+  }
+
+  if (!initEmailQueue()) {
+    return sendMailDirect({ to, subject, html });
+  }
+
   await emailQueue.add('send', { to, subject, html }, {
     attempts: 3,
     backoff: { type: 'exponential', delay: 3000 },
@@ -78,35 +68,32 @@ async function sendEmail({ to, subject, html }) {
 }
 
 async function sendVerificationEmail(email, token) {
-  const link = `${process.env.APP_URL || 'http://localhost:3000'}/auth/verify-email?token=${token}`;
+  const base = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const link = `${base}/auth/verify-email?token=${token}`;
   await sendEmail({
     to: email,
-    subject: 'Verify your email — POS System',
+    subject: 'Verify your email — LeanStock',
     html: `
-      <h2>Welcome to POS System!</h2>
-      <p>Please verify your email address by clicking the link below:</p>
-      <a href="${link}" style="padding:10px 20px;background:#4F46E5;color:white;border-radius:5px;text-decoration:none;">
-        Verify Email
-      </a>
-      <p>Link expires in 24 hours.</p>
-      <p>If you did not register, ignore this email.</p>
+      <h2>Welcome to LeanStock</h2>
+      <p>Click to verify your email:</p>
+      <p><a href="${link}" style="padding:10px 20px;background:#6c63ff;color:white;text-decoration:none;border-radius:6px;">Verify Email</a></p>
+      <p>Or copy this link:</p>
+      <p><a href="${link}">${link}</a></p>
+      <p>Expires in 24 hours.</p>
     `,
   });
 }
 
 async function sendPasswordResetEmail(email, token) {
-  const link = `${process.env.APP_URL || 'http://localhost:3000'}/auth/reset-password?token=${token}`;
+  const base = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const link = `${base}/auth/reset-password?token=${token}`;
   await sendEmail({
     to: email,
-    subject: 'Password Reset — POS System',
+    subject: 'Password Reset — LeanStock',
     html: `
-      <h2>Password Reset Request</h2>
-      <p>Click the link below to reset your password:</p>
-      <a href="${link}" style="padding:10px 20px;background:#DC2626;color:white;border-radius:5px;text-decoration:none;">
-        Reset Password
-      </a>
-      <p>Link expires in 1 hour.</p>
-      <p>If you did not request this, ignore this email.</p>
+      <h2>Password Reset</h2>
+      <p><a href="${link}">Reset your password</a></p>
+      <p>Expires in 1 hour.</p>
     `,
   });
 }
@@ -114,13 +101,10 @@ async function sendPasswordResetEmail(email, token) {
 async function sendOrderConfirmationEmail(email, order) {
   await sendEmail({
     to: email,
-    subject: `Order #${order.id} Confirmed — POS System`,
+    subject: `Order #${order.id} Confirmed — LeanStock`,
     html: `
-      <h2>Order Confirmed!</h2>
-      <p>Your order <strong>#${order.id}</strong> has been placed successfully.</p>
-      <p><strong>Total:</strong> $${order.total}</p>
-      <p><strong>Status:</strong> ${order.status}</p>
-      <p>Thank you for your purchase!</p>
+      <h2>Order Confirmed</h2>
+      <p>Order <strong>#${order.id}</strong> — total $${order.total}</p>
     `,
   });
 }
@@ -128,45 +112,33 @@ async function sendOrderConfirmationEmail(email, order) {
 async function sendWelcomeEmail(email, name) {
   await sendEmail({
     to: email,
-    subject: 'Welcome to POS System!',
-    html: `
-      <h2>Welcome, ${name}!</h2>
-      <p>Your account has been verified successfully.</p>
-      <p>You can now log in and start using the POS System.</p>
-    `,
+    subject: 'Welcome to LeanStock',
+    html: `<h2>Welcome, ${name}!</h2><p>Your email is verified. You can log in now.</p>`,
   });
 }
 
 async function sendStockTransferEmail(email, transfer) {
   await sendEmail({
     to: email,
-    subject: 'Stock Transfer Completed — POS System',
-    html: `
-      <h2>Stock Transfer</h2>
-      <p>Product <strong>#${transfer.productId}</strong> moved from shop ${transfer.fromShopId} to ${transfer.toShopId}.</p>
-      <p><strong>Quantity:</strong> ${transfer.quantity}</p>
-    `,
+    subject: 'Stock Transfer — LeanStock',
+    html: `<p>Product #${transfer.productId}: ${transfer.quantity} units moved between shops.</p>`,
   });
 }
 
 async function sendPriceDecayEmail(email, product, oldPrice, newPrice) {
   await sendEmail({
     to: email,
-    subject: `Price Update: ${product.name} — POS System`,
-    html: `
-      <h2>Dead Stock Discount Applied</h2>
-      <p>Product <strong>${product.name}</strong> (ID ${product.id})</p>
-      <p><strong>Old price:</strong> $${oldPrice}</p>
-      <p><strong>New price:</strong> $${newPrice}</p>
-    `,
+    subject: `Price update: ${product.name}`,
+    html: `<p>${product.name}: $${oldPrice} → $${newPrice}</p>`,
   });
 }
 
 async function getEmailQueueStats() {
   if (!initEmailQueue()) {
-    return { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, disabled: true };
+    return { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, disabled: true, mode: 'direct-smtp' };
   }
-  return emailQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed');
+  const counts = await emailQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed');
+  return { ...counts, mode: 'bullmq' };
 }
 
 module.exports = {
